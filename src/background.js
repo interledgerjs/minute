@@ -10,11 +10,10 @@ class Background {
     this._server = 'btp+ws://:' + this._secret + '@localhost:7768'
     console.log('server: ' + this._server)
     this._plugin = new PluginBtp({ server: this._server })
-    this._chunkAmount = 250
-    this._interval = 5000
-    this._query = null
-    this._sequence = 1
-    this._paymentId = null
+
+    this._receivers = new Map()
+    this._chunkAmount = 25
+    this._interval = 500
   }
 
   async connect () {
@@ -32,14 +31,22 @@ class Background {
     console.log('registered listener')
     setImmediate(async () => {
       while (true) {
-        if (this._query) {
-          try {
+        try {
+          const tab = await this._getCurrentTab()
+          const receiver = this._receivers.get(tab.id)
+
+          if (receiver && tab.url === receiver.url) {
+            console.log('sending single chunk payment')
             await PSK2.sendSingleChunk(this._plugin, Object.assign({
               sourceAmount: this._chunkAmount,
-              id: this._paymentId,
-              sequence: this._sequence++
-            }, this._query))
-          } catch (e) {
+              id: receiver.paymentId,
+              sequence: receiver.sequence++
+            }, receiver.query))
+          } else {
+            this._receivers.delete(tab.id)
+          }
+        } catch (e) {
+          if (e.message !== 'no tab is active') {
             console.log('sending error. error=', e) 
           }
         }
@@ -47,23 +54,44 @@ class Background {
         await new Promise(resolve => setTimeout(resolve, this._interval))
       }
     })
+
+    chrome.tabs.onRemoved.addListener(tabId => {
+      this._receivers.delete(tabId)
+    })
   }
 
   async _handleMessage (msg, sender, sendResponse) {
     window.msg = msg
-    if (msg.receiver) {
-      await this._setStream(msg.receiver)
+    if (msg.receiver && sender.tab.highlighted) {
+      await this._setStream(msg.receiver, sender.tab)
       sendResponse(true)
     } else {
       sendResponse(false)
     }
   }
 
-  async _setStream (receiver) {
-    this._query = null
-    this._paymentId = crypto.randomBytes(16)
-    this._sequence = 1
-    this._query = await SPSP.query(receiver)
+  async _setStream (receiver, tab) {
+    this._receivers.delete(tab.id)
+    console.log('querying', receiver)
+    const query = await SPSP.query(receiver)
+    console.log('got query result', query)
+    console.log('tab url:', tab.url)
+    this._receivers.set(tab.id, {
+      url: tab.url,
+      query,
+      sequence: 1,
+      paymentId: crypto.randomBytes(16),
+      receiver
+    })
+  }
+
+  async _getCurrentTab () {
+    return new Promise((resolve, reject) => {
+      chrome.tabs.query({ currentWindow: true, highlighted: true }, tabs => {
+        if (!tabs.length) return reject(new Error('no tab is active'))
+        resolve(tabs[0])
+      })
+    })
   }
 }
 
