@@ -26,5 +26,5 @@
   "web_accessible_resources": [
     "dist/inject.js"
   ],
-  "permissions": [ "tabs" ]
+  "permissions": [ "tabs", "http://localhost:7768/", "http://localhost:7768/" ]
 }
