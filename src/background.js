@@ -16,6 +16,27 @@ class Background {
     this._interval = 500
   }
 
+  async _idbQuery (request) {
+    return new Promise((resolve, reject) => {
+      request.onsuccess = event => resolve(request.result)
+      request.oncomplete = event => resolve(request.result)
+      request.onerror = event =>
+        reject(new Error('IndexedDB Error: ' + request.errorCode))
+      request.onupgradeneeded = event => {
+        const store = event.target.result.createObjectStore('sites', { keyPath: 'host' })
+        store.createIndex('amount', 'amount', { unique: false })
+      }
+    })
+  }
+
+  async _incrementSite (url) {
+    const host = new URL(url).host
+    const entry = await this._idbQuery(this._db.transaction('sites').objectStore('sites').get(host)) || { amount: 0 }
+    const newAmount = Number(entry.amount) + this._chunkAmount
+    console.log('setting new balance. host=' + host, 'paid=' + entry.amount, 'new=' + newAmount)
+    return this._idbQuery(this._db.transaction(['sites'], 'readwrite').objectStore('sites').put({ host, amount: newAmount }))
+  }
+
   async connect () {
     console.log('connecting plugin')
     await this._plugin.connect()
@@ -27,6 +48,9 @@ class Background {
       this._handleMessage(request, sender, sendResponse)
       return true
     })
+
+    console.log('connecting indexeddb for stats')
+    this._db = await this._idbQuery(indexedDB.open('MinuteDatabase', 2))
 
     console.log('registered listener')
     setImmediate(async () => {
@@ -42,6 +66,8 @@ class Background {
               id: receiver.paymentId,
               sequence: receiver.sequence++
             }, receiver.query))
+
+            await this._incrementSite(receiver.url)
           } else {
             this._receivers.delete(tab.id)
           }
@@ -60,11 +86,12 @@ class Background {
     })
   }
 
-  async _handleMessage (msg, sender, sendResponse) {
-    window.msg = msg
-    if (msg.receiver && sender.tab.highlighted) {
-      await this._setStream(msg.receiver, sender.tab)
+  async _handleMessage (request, sender, sendResponse) {
+    if (request.command === 'pay' && request.msg.receiver && sender.tab.highlighted) {
+      await this._setStream(request.msg.receiver, sender.tab)
       sendResponse(true)
+    } else if (request.command === 'stats') {
+      sendResponse(await this._getStats())
     } else {
       sendResponse(false)
     }
@@ -85,6 +112,27 @@ class Background {
     })
   }
 
+  async _getStats () {
+    const ret = {
+      sites: []
+    }
+
+    let entries = 6
+    await new Promise(resolve => {
+      this._db.transaction('sites').objectStore('sites').index('amount').openCursor(IDBKeyRange.lowerBound(0), 'prev').onsuccess = event => {
+        const cursor = event.target.result
+        if (entries-- && cursor) {
+          ret.sites.push(cursor.value)
+          cursor.continue()
+        } else {
+          resolve()
+        }
+      }
+    })
+
+    return ret
+  }
+
   async _getCurrentTab () {
     return new Promise((resolve, reject) => {
       chrome.tabs.query({ currentWindow: true, highlighted: true }, tabs => {
@@ -95,5 +143,5 @@ class Background {
   }
 }
 
-const background = new Background()
-background.connect()
+window.background = new Background()
+window.background.connect()
