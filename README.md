@@ -7,6 +7,8 @@
 ## Quick Start
 
 Before you use this module, install and run [Moneyd](https://github.com/sharafian/moneyd).
+Make sure you start moneyd with the `--unsafe-allow-extensions` flag, which will permit this
+chrome extension to access the local port.
 
 ```sh
 git clone https://github.com/sharafian/minute.git
