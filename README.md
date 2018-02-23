@@ -26,16 +26,17 @@ Add the following tag to your site's body:
 
 ```html
 <script>
-  if (ILP && ILP.pay) {
-    ILP.pay({
+  if (Monetization) {
+    Monetization.setReceiver({
       receiver: /* Put your SPSP payment pointer here */
-    }).then(paying => {
+    }).then(() => {
       // Make sure to thank the user!
     })
   }
 </script>
 ```
 
-Now any user who navigates to your site and has Minute enabled will stream
-payments to you. Thanking your supporters and offering them a premium
-experience will incentivise them to come back.
+Now any user who navigates to your site and has Minute (or another extension
+that enables Web Monetization) enabled will stream payments to you. Thanking
+your supporters and offering them a premium experience will incentivise them to
+come back.
