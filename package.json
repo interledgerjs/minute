@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint src",
     "build": "find node_modules -name '*.pem' -exec rm \\{\\} \\; ; ./node_modules/.bin/webpack"
   },
   "author": "",
@@ -28,6 +29,12 @@
     "babel-preset-es2015": "^6.9.0",
     "babel-preset-react": "^6.11.1",
     "css-loader": "^0.28.9",
+    "eslint": "^4.18.1",
+    "eslint-config-standard": "^11.0.0",
+    "eslint-plugin-import": "^2.9.0",
+    "eslint-plugin-node": "^6.0.1",
+    "eslint-plugin-promise": "^3.6.0",
+    "eslint-plugin-standard": "^3.0.1",
     "http-server": "^0.9.0",
     "json-loader": "^0.5.4",
     "null-loader": "^0.1.1",
