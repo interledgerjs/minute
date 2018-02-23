@@ -1,7 +1,7 @@
 const uuid = require('uuid')
 
-class ILP {
-  static async pay ({ receiver }) {
+class Monetization {
+  static async setReceiver ({ receiver }) {
     const id = uuid()
     const response = new Promise((resolve, reject) => {
       function responseListener (ev) {
@@ -19,4 +19,12 @@ class ILP {
   }
 }
 
+class ILP {
+  static async pay ({ receiver }) {
+    console.error('ILP.pay is deprecated! Switch to Monetization.setReceiver')
+    return Monetization.setReceiver({ receiver })
+  }
+}
+
+window.Monetization = Monetization
 window.ILP = ILP

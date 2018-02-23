@@ -87,7 +87,7 @@ class Background {
   }
 
   async _handleMessage (request, sender, sendResponse) {
-    if (request.command === 'pay' && request.msg.receiver && sender.tab.highlighted) {
+    if (request.command === 'pay' && sender.tab.highlighted) {
       await this._setStream(request.msg.receiver, sender.tab)
       sendResponse(true)
     } else if (request.command === 'stats') {
@@ -99,6 +99,11 @@ class Background {
 
   async _setStream (receiver, tab) {
     this._receivers.delete(tab.id)
+    if (!receiver) {
+      console.log('removing receiver for', tab.id)
+      return
+    }
+
     console.log('querying', receiver)
     const query = await SPSP.query(receiver)
     console.log('got query result', query)
