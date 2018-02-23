@@ -26,8 +26,8 @@ Add the following tag to your site's body:
 
 ```html
 <script>
-  if (Monetization) {
-    Monetization.setReceiver({
+  if (window.monetize) {
+    monetize({
       receiver: /* Put your SPSP payment pointer here */
     }).then(() => {
       // Make sure to thank the user!
