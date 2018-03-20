@@ -23,16 +23,21 @@ async function refresh () {
 
     host.innerHTML = site.host
 
-    if (!Number(site.amount) || !Number(amount.innerHTML)) {
+    if (!Number(site.amount)) {
       amount.innerHTML = site.amount
       continue
     }
 
-    let currentAmount = Number(amount.innerHTML) || 0
+    if (!Number(amount.innerHTML)) {
+      amount.innerHTML = (site.amount / 1e6).toFixed(6)
+      continue
+    }
+
+    let currentAmount = Math.floor((Number(amount.innerHTML) || 0) * 1e6)
     let targetAmount = Number(site.amount)
     const animateInterval = setInterval(() => {
       currentAmount += Math.sign(targetAmount - currentAmount)
-      amount.innerHTML = String(currentAmount)
+      amount.innerHTML = (currentAmount / 1e6).toFixed(6)
       if (currentAmount === targetAmount) {
         clearInterval(animateInterval)
       }
