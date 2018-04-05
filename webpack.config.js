@@ -19,7 +19,8 @@ module.exports = {
   externals: {
     'ws': 'WsPolyfill',
     'url': 'UrlPolyfill',
-    'node-fetch': 'FetchPolyfill'
+    'node-fetch': 'FetchPolyfill',
+    'source-map-support': 'SourceMapPolyfill'
   },
 
   module: {

@@ -16,8 +16,8 @@
     "bootstrap": "^3.3.7",
     "file-loader": "^1.1.6",
     "ilp-plugin-btp": "^1.1.6",
-    "ilp-protocol-psk2": "^0.2.1",
-    "ilp-protocol-spsp": "^2.0.0",
+    "ilp-protocol-spsp": "github:interledgerjs/ilp-protocol-spsp#bs-stream",
+    "ilp-protocol-stream": "^0.1.2",
     "jquery": "^3.1.0",
     "url-loader": "^0.6.2",
     "uuid": "^3.2.1"

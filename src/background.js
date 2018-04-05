@@ -1,16 +1,16 @@
 const crypto = require('crypto')
-const PluginBtp = require('ilp-plugin-btp')
 const SPSP = require('ilp-protocol-spsp')
-const PSK2 = require('ilp-protocol-psk2')
+const PluginBtp = require('ilp-plugin-btp')
+const { createConnection } = require('ilp-protocol-stream')
+
+function makePlugin () {
+  const secret = crypto.randomBytes(16).toString('hex')
+  const server = 'btp+ws://:' + secret + '@localhost:7768'
+  return new PluginBtp({ server })
+}
 
 class Background {
   constructor () {
-    this._secret = crypto.randomBytes(16).toString('hex')
-    console.log('secret: ' + this._secret)
-    this._server = 'btp+ws://:' + this._secret + '@localhost:7768'
-    console.log('server: ' + this._server)
-    this._plugin = new PluginBtp({ server: this._server })
-
     this._receivers = new Map()
     this._chunkAmount = 25
     this._interval = 500
@@ -38,10 +38,6 @@ class Background {
   }
 
   async connect () {
-    console.log('connecting plugin')
-    await this._plugin.connect()
-    console.log('connected plugin')
-
     // TODO: need to handle anything during connect phase?
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       console.log('received message. request=', request)
@@ -60,13 +56,11 @@ class Background {
           const receiver = this._receivers.get(tab.id)
 
           if (receiver && tab.url === receiver.url) {
-            console.log('sending single chunk payment')
-            await PSK2.sendSingleChunk(this._plugin, Object.assign({
-              sourceAmount: this._chunkAmount,
-              id: receiver.paymentId,
-              sequence: receiver.sequence++
-            }, receiver.query))
+            console.log('sending on stream. tab=' + tab.url +
+              ' amount=' + this._chunkAmount)
 
+            receiver.amount += this._chunkAmount
+            await receiver.stream.sendTotal(receiver.amount)
             await this._incrementSite(receiver.url)
           } else {
             this._receivers.delete(tab.id)
@@ -108,11 +102,25 @@ class Background {
     const query = await SPSP.query(receiver)
     console.log('got query result', query)
     console.log('tab url:', tab.url)
+
+    console.log('creating connection to moneyd')
+    const plugin = makePlugin()
+    await plugin.connect()
+
+    console.log('opening connection to', receiver)
+    const socket = await createConnection({
+      plugin,
+      destinationAccount: query.destinationAccount,
+      sharedSecret: query.sharedSecret
+    })
+
+    console.log('initializing money stream')
+    const stream = socket.createMoneyStream()
+
     this._receivers.set(tab.id, {
       url: tab.url,
-      query,
-      sequence: 1,
-      paymentId: crypto.randomBytes(16),
+      stream,
+      amount: 0,
       receiver
     })
   }

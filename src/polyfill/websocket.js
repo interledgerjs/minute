@@ -21,6 +21,7 @@ class Url {
   }
 }
 
+window.SourceMapPolyfill = { install: (() => {}) }
 window.FetchPolyfill = fetch
 window.UrlPolyfill = { URL: Url }
 window.WsPolyfill = class WsPolyfill extends EventEmitter {
