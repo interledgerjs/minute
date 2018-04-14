@@ -6,7 +6,6 @@ module.exports = {
     'dist/websocket': './src/polyfill/websocket.js',
     'dist/background': './src/background.js',
     'dist/content': './src/content.js',
-    'dist/inject': './src/inject.js',
     'dist/popup': './src/popup.js'
   },
 
