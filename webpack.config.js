@@ -9,8 +9,7 @@ module.exports = {
   entry: {
     'dist/websocket': './src/polyfill/websocket.js',
     'dist/background': './src/background.js',
-    'dist/content': './src/content.js',
-    'dist/popup': './src/popup.js'
+    'dist/content': './src/content.js'
   },
 
   output: {
@@ -33,7 +32,7 @@ module.exports = {
         exclude: /node_modules/,
         loader: 'babel-loader',
         options: {
-          presets: [/*'react',*/ 'env'],
+          presets: ['env'],
           plugins: ['transform-class-properties', ['transform-runtime', {
             helpers: false,
             polyfill: false,
@@ -48,6 +47,7 @@ module.exports = {
     console: true,
     fs: 'empty',
     net: 'empty',
-    tls: 'empty'
+    tls: 'empty',
+    cluster: 'empty'
   }
 }

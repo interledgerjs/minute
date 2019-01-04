@@ -30,17 +30,15 @@ document.addEventListener('readystatechange', ev => {
     // Indicate that meta tags have been processed and payment will be
     // attempted
     document.dispatchEvent(new CustomEvent('webmonetizationload', {
-      detail: {
-        correlationId,
-        ...details
-      }
+      detail: Object.assign({
+        correlationId
+      }, details)
     }))
 
-    const request = {
+    const request = Object.assign({
       command: 'pay',
-      correlationId,
-      ...details
-    }
+      correlationId
+    }, details)
 
     chrome.runtime.sendMessage(request, result => {
       if (result.error) {
@@ -51,10 +49,9 @@ document.addEventListener('readystatechange', ev => {
       // Indicate that payment has started.
       // First nonzero packet has been fulfilled
       document.dispatchEvent(new CustomEvent('webmonetizationstart', {
-        detail: {
-          correlationId,
-          ...details
-        }
+        detail: Object.assign({
+          correlationId
+        }, details)
       }))
     })
   }
