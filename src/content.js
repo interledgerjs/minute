@@ -1,76 +1,61 @@
-const inject = () => {
-  const script = document.createElement('script')
-  script.id = '__monetize_polyfill'
-  script.innerHTML = `
-function u8tohex (arr) {
-  var vals = [ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' ]
-  var ret = ''
-  for (var i = 0; i < arr.length; ++i) {
-    ret += vals[(arr[i] & 0xf0) / 0x10]
-    ret += vals[(arr[i] & 0x0f)]
+const uuid = require('uuid/v4')
+const paymentPointerSelector = 'meta[name=\'webmonetization:paymentpointer\']'
+
+function getWebMonetizationDetails () {
+  const paymentPointerElement = document.head
+    .querySelector(paymentPointerSelector)
+
+  if (!paymentPointerElement) {
+    return
   }
-  return ret
+
+  // TODO: validate payment pointer by regex
+  const paymentPointer = paymentPointerElement.getAttribute('content')
+  return {
+    paymentPointer
+  }
 }
 
-function getRandomId () {
-  var idBytes = new Uint8Array(16)
-  crypto.getRandomValues(idBytes)
-  return u8tohex(idBytes)
-}
+document.addEventListener('readystatechange', ev => {
+  if (event.target.readyState === 'interactive') {
+    const details = getWebMonetizationDetails()
 
-async function monetize ({ receiver }) {
-  const id = getRandomId()
-  const response = new Promise((resolve, reject) => {
-    function responseListener (ev) {
-      const msg = ev.detail
-      if (msg.id !== id) return
-      setTimeout(() => document.removeEventListener('ilp_pay_response', responseListener), 0)
-      console.log('got message:', msg)
-
-      if (msg.result) {
-        resolve()
-      } else {
-        reject(new Error('failed to pay'))
-      }
+    // return if there are no web monetization tags
+    if (!details) {
+      return
     }
-    document.addEventListener('ilp_pay_response', responseListener)
-  })
 
-  document.dispatchEvent(new CustomEvent('ilp_pay_request', { detail: { id, receiver } }))
-  return response
-}
+    const correlationId = uuid()
 
-class ILP {
-  static async pay ({ receiver }) {
-    console.error('ILP.pay() is deprecated! Switch to monetize()')
-    return monetize({ receiver })
-      .then(() => true)
-      .catch(() => false)
-  }
-}
+    // Indicate that meta tags have been processed and payment will be
+    // attempted
+    document.dispatchEvent(new CustomEvent('webmonetizationload', {
+      detail: {
+        correlationId,
+        ...details
+      }
+    }))
 
-window.monetize = monetize
-window.ILP = ILP
-
-document.documentElement.removeChild(document.getElementById('__monetize_polyfill'))
-`
-  document.documentElement.appendChild(script)
-}
-
-const listen = () => {
-  // const connection = chrome.runtime.connect({ name: 'ilp_rpc' })
-  document.addEventListener('ilp_pay_request', ev => {
-    const msg = ev.detail
-    const request = { command: 'pay', msg }
+    const request = {
+      command: 'pay',
+      correlationId,
+      ...details
+    }
 
     chrome.runtime.sendMessage(request, result => {
-      document.dispatchEvent(new CustomEvent('ilp_pay_response', { detail: {
-        id: msg.id,
-        result
-      }}))
-    })
-  })
-}
+      if (result.error) {
+        console.error(result.error)
+        return
+      }
 
-listen()
-inject()
+      // Indicate that payment has started.
+      // First nonzero packet has been fulfilled
+      document.dispatchEvent(new CustomEvent('webmonetizationstart', {
+        detail: {
+          correlationId,
+          ...details
+        }
+      }))
+    })
+  }
+})
