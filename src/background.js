@@ -1,23 +1,60 @@
 const crypto = require('crypto')
 const PluginBtp = require('ilp-plugin-btp')
+const IlpConnector = require('ilp-connector')
+const Ildcp = require('ilp-protocol-ildcp')
 const IlpStream = require('ilp-protocol-stream')
+
+function getBtpSecret () {
+  return crypto.randomBytes(16).toString('hex')
+}
 
 class Background {
   constructor () {
-    this._secret = crypto.randomBytes(16).toString('hex')
-    this._server = 'btp+ws://:' + this._secret + '@localhost:7768'
-    this._plugin = new PluginBtp({ server: this._server })
+    // this._server = 'btp+ws://:' + this._secret + '@localhost:7768'
 
-    // TODO: constrain throughput globally
-    this._receivers = new Map()
+    // TODO: just add an option for connector to inherit env
   }
 
   async connect () {
-    console.log('connecting plugin')
-    await this._plugin.connect()
-    console.log('connected plugin')
+    const plugin = new PluginBtp({
+      server: 'btp+ws://localhost:7768',
+      btpToken: getBtpSecret()
+    })
 
-    // TODO: need to handle anything during connect phase?
+    console.log('connecting plugin')
+    await plugin.connect()
+
+    console.log('ildcp lookup on plugin')
+    const ildcp = Ildcp.fetch(plugin.sendData.bind(plugin))
+
+    console.log('creating connector')
+    this._connector = IlpConnector.createApp({
+      spread: 0,
+      backend: 'one-to-one',
+      store: 'ilp-store-memory',
+      initialConnectTimeout: 60000,
+      env: ildcp.clientAddress.startsWith('g.') ? 'production' : 'test',
+      accounts: {
+        wm: {
+          relation: 'child',
+          plugin: 'ilp-plugin-multiplex',
+          assetCode: ildcp.assetCode,
+          assetScale: (ildcp.assetCode === 'XRP' ? 9 : ildcp.assetScale)
+        },
+        moneyd: {
+          relation: 'parent',
+          plugin: 'ilp-plugin-btp',
+          assetCode: ildcp.assetCode,
+          assetScale: ildcp.assetScale,
+          sendRoutes: false,
+          receiveRoutes: false,
+          throughput: {
+            outgoingAmount: 
+          }
+        }
+      }
+    })
+
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       console.log('received message. request=', request)
       this._handleMessage(request, sender, sendResponse)
@@ -25,14 +62,14 @@ class Background {
     })
 
     // TODO: make this work again
-    chrome.tabs.onRemoved.addListener(tabId => {
-      this._receivers.delete(tabId)
-    })
+    // chrome.tabs.onRemoved.addListener(tabId => {
+    //   this._receivers.delete(tabId)
+    // })
   }
 
   async _handleMessage (request, sender, sendResponse) {
     if (request.command === 'pay') {
-      sendResponse(await this._startStream(request.msg.receiver, sender.tab))
+      sendResponse(await this._startStream(request.msg, sender.tab))
     } else if (request.command === 'stats') {
       sendResponse(await this._getStats())
     } else {
@@ -40,25 +77,41 @@ class Background {
     }
   }
 
-  async _startStream (receiver, tab) {
-    this._receivers.delete(tab.id)
-    if (!receiver) {
-      console.log('removing receiver for', tab.id)
-      return
+  _spspReceiverToUrl (receiver) {
+    return receiver.startsWith('$')
+      ? 'https://' + receiver.substring(1)
+      : receiver
+  }
+
+  async _spspQuery (receiver, correlationId) {
+    const url = this._spspReceiverToUrl(receiver)
+    const result = await fetch(url, {
+      method: 'GET',
+      credentials: 'omit',
+      headers: {
+        Accept: 'application/spsp4+json',
+        'Web-Monetization-Id': correlationId
+      }
+    })
+
+    if (!result.ok) {
+      throw new Error('Error in SPSP query.' +
+        ' receiver=' + receiver +
+        ' correlationId=' + correlationId +
+        ' message=' + result.statusText)
     }
 
-    console.log('querying', receiver)
-    const query = await SPSP.query(receiver)
+    return result.json()
+  }
+
+  async _startStream ({ paymentPointer, correlationId }, tab) {
+    console.log('querying', paymentPointer)
+    const query = await this._spspQuery(paymentPointer)
     console.log('got query result', query)
     console.log('tab url:', tab.url)
 
-    this._receivers.set(tab.id, {
-      url: tab.url,
-      query,
-      sequence: 1,
-      paymentId: crypto.randomBytes(16),
-      receiver
-    })
+    const plugin = new LocalPlugin()
+    const 
   }
 
   async _getStats () {

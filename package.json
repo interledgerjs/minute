@@ -15,9 +15,12 @@
     "babel-preset-es2017": "^6.24.1",
     "bootstrap": "^3.3.7",
     "file-loader": "^1.1.6",
+    "ilp-connector": "^22.2.0",
     "ilp-plugin-btp": "^1.1.6",
+    "ilp-plugin-multiplex": "^1.0.0",
     "ilp-protocol-psk2": "^0.2.1",
     "ilp-protocol-spsp": "^2.0.0",
+    "ilp-store-memory": "^1.0.0",
     "jquery": "^3.1.0",
     "url-loader": "^0.6.2",
     "uuid": "^3.2.1"
