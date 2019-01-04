@@ -1,7 +1,11 @@
 'use strict'
 const webpack = require('webpack')
 
+console.log('dirname', __dirname)
+
 module.exports = {
+  mode: 'development',
+
   entry: {
     'dist/websocket': './src/polyfill/websocket.js',
     'dist/background': './src/background.js',
@@ -23,45 +27,22 @@ module.exports = {
 
   module: {
     noParse: [ /\bws$/ ],
-    loaders: [
+    rules: [
       {
         test: /\.js$/,
-        // exclude: /node_modules/,
+        exclude: /node_modules/,
         loader: 'babel-loader',
-        query: {
-          presets: ['es2017', 'es2015', 'react'],
-          plugins: [['transform-runtime', {
+        options: {
+          presets: [/*'react',*/ 'env'],
+          plugins: ['transform-class-properties', ['transform-runtime', {
             helpers: false,
             polyfill: false,
             regenerator: true, }]
           ]
         }
-      },
-      {
-        test: /\.css$/,
-        loaders: ["style-loader", "css-loader"]
-      },
-      { test: /ed25519/, loader: 'null' },
-      { test: /\.json$/, loader: 'json-loader' },
-      {
-        test: /\.woff(2)?(\?v=[0-9]\.[0-9]\.[0-9])?$/,
-        loader: "url-loader?limit=10000&mimetype=application/font-woff&name=fonts/[name].[ext]"
-      },{
-        test: /\.(ttf|eot|svg)(\?v=[0-9]\.[0-9]\.[0-9])?$/,
-        loader: "file-loader?name=fonts/[name].[ext]"
-      },{
-        test: /\.(jpe?g|png|gif)$/,
-        loader:'file-loader?name=img/[name].[ext]'
       }
     ]
   },
-
-  plugins: [
-    new webpack.ProvidePlugin({
-      $: 'jquery',
-      jQuery: 'jquery',
-    })
-  ],
 
   node: {
     console: true,

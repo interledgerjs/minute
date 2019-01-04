@@ -1,5 +1,6 @@
 const crypto = require('crypto')
 const PluginBtp = require('ilp-plugin-btp')
+const PluginMux = require('ilp-plugin-multiplex')
 const IlpConnector = require('ilp-connector')
 const Ildcp = require('ilp-protocol-ildcp')
 const IlpStream = require('ilp-protocol-stream')
@@ -16,16 +17,18 @@ class Background {
   }
 
   async connect () {
-    const plugin = new PluginBtp({
+    this._pluginBtp = new PluginBtp({
       server: 'btp+ws://localhost:7768',
       btpToken: getBtpSecret()
     })
 
-    console.log('connecting plugin')
-    await plugin.connect()
+    console.log('connecting plugin btp')
+    await this._pluginBtp.connect()
 
-    console.log('ildcp lookup on plugin')
-    const ildcp = Ildcp.fetch(plugin.sendData.bind(plugin))
+    console.log('ildcp lookup on plugin btp')
+    const ildcp = Ildcp.fetch(this.pluginBtp.sendData.bind(this._pluginBtp))
+
+    this._pluginMux = new PluginMux({})
 
     console.log('creating connector')
     this._connector = IlpConnector.createApp({
@@ -37,23 +40,28 @@ class Background {
       accounts: {
         wm: {
           relation: 'child',
-          plugin: 'ilp-plugin-multiplex',
+          plugin: this._pluginMux,
           assetCode: ildcp.assetCode,
-          assetScale: (ildcp.assetCode === 'XRP' ? 9 : ildcp.assetScale)
+          assetScale: (ildcp.assetCode === 'XRP' ? 9 : ildcp.assetScale),
+          throughput: {
+            // TODO: make the throughput configurable
+            outgoingAmount: '10000'
+          }
         },
         moneyd: {
           relation: 'parent',
-          plugin: 'ilp-plugin-btp',
+          plugin: this._pluginBtp,
           assetCode: ildcp.assetCode,
           assetScale: ildcp.assetScale,
           sendRoutes: false,
-          receiveRoutes: false,
-          throughput: {
-            outgoingAmount: 
-          }
+          receiveRoutes: false
         }
       }
     })
+
+    console.log('connecting connector')
+    await this._connector.listen()
+    console.log('connector connected')
 
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       console.log('received message. request=', request)
@@ -110,8 +118,7 @@ class Background {
     console.log('got query result', query)
     console.log('tab url:', tab.url)
 
-    const plugin = new LocalPlugin()
-    const 
+    // TODO
   }
 
   async _getStats () {

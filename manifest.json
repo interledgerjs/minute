@@ -8,8 +8,7 @@
     "128": "res/ilp_logo_128.png"
   },
   "browser_action": {
-    "default_icon": "res/ilp_logo.png",
-    "default_popup": "html/popup.html"
+    "default_icon": "res/ilp_logo.png"
   },
   "background": {
     "page": "html/background.html"
