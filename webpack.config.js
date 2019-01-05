@@ -32,10 +32,9 @@ module.exports = {
         exclude: /node_modules/,
         loader: 'babel-loader',
         options: {
-          presets: ['env'],
-          plugins: ['transform-class-properties', ['transform-runtime', {
+          presets: ['@babel/env'],
+          plugins: [['@babel/plugin-transform-runtime', {
             helpers: false,
-            polyfill: false,
             regenerator: true, }]
           ]
         }

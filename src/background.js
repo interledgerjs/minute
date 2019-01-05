@@ -1,8 +1,6 @@
 const crypto = require('crypto')
 const PluginBtp = require('ilp-plugin-btp')
 const PluginMux = require('ilp-plugin-multiplex')
-const IlpConnector = require('ilp-connector')
-const Ildcp = require('ilp-protocol-ildcp')
 const IlpStream = require('ilp-protocol-stream')
 
 function getBtpSecret () {
@@ -11,9 +9,6 @@ function getBtpSecret () {
 
 class Background {
   constructor () {
-    // this._server = 'btp+ws://:' + this._secret + '@localhost:7768'
-
-    // TODO: just add an option for connector to inherit env
   }
 
   async connect () {
@@ -22,46 +17,24 @@ class Background {
       btpToken: getBtpSecret()
     })
 
+    this._pluginMux = new PluginMux({
+      throughput: '100000',
+      maxPacketAmount: '100000'
+    })
+
+    this._pluginMux.registerDataHandler(data => {
+      return this._pluginBtp.sendData(data)
+    })
+
+    this._pluginBtp.registerDataHandler(data => {
+      return this._pluginMux.sendData(data)
+    })
+
     console.log('connecting plugin btp')
     await this._pluginBtp.connect()
 
-    console.log('ildcp lookup on plugin btp')
-    const ildcp = Ildcp.fetch(this.pluginBtp.sendData.bind(this._pluginBtp))
-
-    this._pluginMux = new PluginMux({})
-
-    console.log('creating connector')
-    this._connector = IlpConnector.createApp({
-      spread: 0,
-      backend: 'one-to-one',
-      store: 'ilp-store-memory',
-      initialConnectTimeout: 60000,
-      env: ildcp.clientAddress.startsWith('g.') ? 'production' : 'test',
-      accounts: {
-        wm: {
-          relation: 'child',
-          plugin: this._pluginMux,
-          assetCode: ildcp.assetCode,
-          assetScale: (ildcp.assetCode === 'XRP' ? 9 : ildcp.assetScale),
-          throughput: {
-            // TODO: make the throughput configurable
-            outgoingAmount: '10000'
-          }
-        },
-        moneyd: {
-          relation: 'parent',
-          plugin: this._pluginBtp,
-          assetCode: ildcp.assetCode,
-          assetScale: ildcp.assetScale,
-          sendRoutes: false,
-          receiveRoutes: false
-        }
-      }
-    })
-
-    console.log('connecting connector')
-    await this._connector.listen()
-    console.log('connector connected')
+    console.log('connecting multiplex plugin')
+    await this._pluginMux.connect()
 
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       console.log('received message. request=', request)

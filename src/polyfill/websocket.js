@@ -33,13 +33,11 @@ window.WsPolyfill = class WsPolyfill extends EventEmitter {
     this._ws.onopen = this.emit.bind(this, 'open')
     this._ws.onclose = this.emit.bind(this, 'close')
     this._ws.onmessage = (msg) => {
-      console.log('WS MESSAGE', msg.data)
       this.emit('message', Buffer.from(msg.data))
     }
   }
 
   send (msg, cb) {
-    console.log(msg.toString('hex'))
     const arrayBuffer = new Uint8Array(msg).buffer
     this._ws.send(arrayBuffer)
     cb()
