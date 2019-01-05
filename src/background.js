@@ -18,8 +18,8 @@ class Background {
     })
 
     this._pluginMux = new PluginMux({
-      throughput: '100000',
-      maxPacketAmount: '100000'
+      throughput: '100',
+      maxPacketAmount: '100'
     })
 
     this._pluginMux.registerDataHandler(data => {
@@ -50,7 +50,7 @@ class Background {
 
   async _handleMessage (request, sender, sendResponse) {
     if (request.command === 'pay') {
-      sendResponse(await this._startStream(request.msg, sender.tab))
+      sendResponse(await this._startStream(request, sender.tab))
     } else if (request.command === 'stats') {
       sendResponse(await this._getStats())
     } else {
@@ -91,7 +91,28 @@ class Background {
     console.log('got query result', query)
     console.log('tab url:', tab.url)
 
-    // TODO
+    console.log('creating plugin')
+    const plugin = this._pluginMux.getChild({
+      id: String(Math.random()).substring(2)
+    })
+
+    console.log('creating STREAM connection')
+    console.log('shared secret', Buffer.from(query.shared_secret, 'base64'))
+    const connection = await IlpStream.createConnection({
+      destinationAccount: query.destination_account,
+      sharedSecret: Buffer.from(query.shared_secret, 'base64'),
+      plugin
+    })
+
+    // TODO: better way to send infinity
+    console.log('sending money')
+    const stream = connection.createStream()
+    stream.setSendMax('999999')
+    stream.on('outgoing_money', amount => {
+      console.log('sent packet.',
+        'paymentPointer=' + paymentPointer,
+        'amount=' + amount)
+    })
   }
 
   async _getStats () {
