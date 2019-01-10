@@ -1,5 +1,5 @@
 const uuid = require('uuid/v4')
-const paymentPointerSelector = 'meta[name=\'webmonetization:paymentpointer\']'
+const paymentPointerSelector = 'meta[name=\'monetization:paymentpointer\']'
 
 function getWebMonetizationDetails () {
   const paymentPointerElement = document.head
@@ -29,7 +29,7 @@ document.addEventListener('readystatechange', ev => {
 
     // Indicate that meta tags have been processed and payment will be
     // attempted
-    document.dispatchEvent(new CustomEvent('webmonetizationload', {
+    document.dispatchEvent(new CustomEvent('monetizationload', {
       detail: Object.assign({
         correlationId
       }, details)
@@ -48,11 +48,30 @@ document.addEventListener('readystatechange', ev => {
 
       // Indicate that payment has started.
       // First nonzero packet has been fulfilled
-      document.dispatchEvent(new CustomEvent('webmonetizationstart', {
-        detail: Object.assign({
-          correlationId
-        }, details)
-      }))
+      injectWebMonetizationStatus('started').then(() => {
+        document.dispatchEvent(new CustomEvent('monetizationstart', {
+          detail: Object.assign({
+            correlationId
+          }, details)
+        }))
+      })
     })
   }
 })
+
+function injectWebMonetizationStatus (status) {
+  // set flag to indicate web monetization is supported
+  const script = document.createElement('script')
+  script.innerHTML = 'document.monetizationStatus = ' + JSON.stringify(status)
+  document.documentElement.appendChild(script)
+
+  // clean it up afterwards
+  return new Promise(resolve => {
+    script.addEventListener('load', () => {
+      document.documentElement.removeChild(script)
+      resolve()
+    })
+  })
+}
+
+injectWebMonetizationStatus('pending')

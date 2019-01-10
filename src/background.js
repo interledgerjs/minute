@@ -49,13 +49,22 @@ class Background {
   }
 
   async _handleMessage (request, sender, sendResponse) {
-    if (request.command === 'pay') {
+    if (request.command === 'inject') {
+      sendResponse(this._injectScript(sender.tab))
+    } else if (request.command === 'pay') {
       sendResponse(await this._startStream(request, sender.tab))
     } else if (request.command === 'stats') {
       sendResponse(await this._getStats())
     } else {
       sendResponse({ error: 'invalid command' })
     }
+  }
+
+  _injectScript (tab) {
+    console.log('inject webMonetizationEnabled')
+    chrome.tabs.executeScript(tab.id, {
+      code: 'window.webMonetizationEnabled = true'
+    })
   }
 
   _spspReceiverToUrl (receiver) {
@@ -113,6 +122,8 @@ class Background {
         'paymentPointer=' + paymentPointer,
         'amount=' + amount)
     })
+
+    return {}
   }
 
   async _getStats () {
