@@ -48,13 +48,12 @@ document.addEventListener('readystatechange', ev => {
 
       // Indicate that payment has started.
       // First nonzero packet has been fulfilled
-      injectWebMonetizationStatus('started').then(() => {
-        document.dispatchEvent(new CustomEvent('monetizationstart', {
-          detail: Object.assign({
-            correlationId
-          }, details)
-        }))
-      })
+      injectWebMonetizationStatus('started')
+      document.dispatchEvent(new CustomEvent('monetizationstart', {
+        detail: Object.assign({
+          correlationId
+        }, details)
+      }))
     })
   }
 })
@@ -66,12 +65,7 @@ function injectWebMonetizationStatus (status) {
   document.documentElement.appendChild(script)
 
   // clean it up afterwards
-  return new Promise(resolve => {
-    script.addEventListener('load', () => {
-      document.documentElement.removeChild(script)
-      resolve()
-    })
-  })
+  document.documentElement.removeChild(script)
 }
 
 injectWebMonetizationStatus('pending')
