@@ -26,15 +26,6 @@ document.addEventListener('readystatechange', ev => {
     }
 
     const correlationId = uuid()
-
-    // Indicate that meta tags have been processed and payment will be
-    // attempted
-    document.dispatchEvent(new CustomEvent('monetizationload', {
-      detail: Object.assign({
-        correlationId
-      }, details)
-    }))
-
     const request = Object.assign({
       command: 'pay',
       correlationId
