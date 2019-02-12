@@ -1,76 +1,150 @@
-const inject = () => {
+const uuid = require('uuid/v4')
+const paymentPointerSelector = 'meta[name=\'monetization\']'
+
+if (window === window.top) {
+  chrome.runtime.sendMessage({
+    command: 'stopWebMonetization'
+  })
+}
+
+function inject (code) {
   const script = document.createElement('script')
-  script.id = '__monetize_polyfill'
-  script.innerHTML = `
-function u8tohex (arr) {
-  var vals = [ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' ]
-  var ret = ''
-  for (var i = 0; i < arr.length; ++i) {
-    ret += vals[(arr[i] & 0xf0) / 0x10]
-    ret += vals[(arr[i] & 0x0f)]
-  }
-  return ret
-}
-
-function getRandomId () {
-  var idBytes = new Uint8Array(16)
-  crypto.getRandomValues(idBytes)
-  return u8tohex(idBytes)
-}
-
-async function monetize ({ receiver }) {
-  const id = getRandomId()
-  const response = new Promise((resolve, reject) => {
-    function responseListener (ev) {
-      const msg = ev.detail
-      if (msg.id !== id) return
-      setTimeout(() => document.removeEventListener('ilp_pay_response', responseListener), 0)
-      console.log('got message:', msg)
-
-      if (msg.result) {
-        resolve()
-      } else {
-        reject(new Error('failed to pay'))
-      }
-    }
-    document.addEventListener('ilp_pay_response', responseListener)
-  })
-
-  document.dispatchEvent(new CustomEvent('ilp_pay_request', { detail: { id, receiver } }))
-  return response
-}
-
-class ILP {
-  static async pay ({ receiver }) {
-    console.error('ILP.pay() is deprecated! Switch to monetize()')
-    return monetize({ receiver })
-      .then(() => true)
-      .catch(() => false)
-  }
-}
-
-window.monetize = monetize
-window.ILP = ILP
-
-document.documentElement.removeChild(document.getElementById('__monetize_polyfill'))
-`
+  script.innerHTML = code
   document.documentElement.appendChild(script)
+
+  // clean it up afterwards
+  document.documentElement.removeChild(script)
 }
 
-const listen = () => {
-  // const connection = chrome.runtime.connect({ name: 'ilp_rpc' })
-  document.addEventListener('ilp_pay_request', ev => {
-    const msg = ev.detail
-    const request = { command: 'pay', msg }
+function getWebMonetizationDetails () {
+  const paymentPointerElement = document.head
+    .querySelector(paymentPointerSelector)
 
-    chrome.runtime.sendMessage(request, result => {
-      document.dispatchEvent(new CustomEvent('ilp_pay_response', { detail: {
-        id: msg.id,
-        result
-      }}))
+  if (!paymentPointerElement) {
+    return
+  }
+
+  const paymentPointer = paymentPointerElement.getAttribute('content')
+  return {
+    paymentPointer
+  }
+}
+
+function startMonetization () {
+  const details = getWebMonetizationDetails()
+
+  // return if there are no web monetization tags
+  if (!details) {
+    return
+  }
+
+  // if the page is an iframe make sure it's authorized
+  if (window !== window.top) {
+    console.error('This page is not authorized to use Web Monetization.')
+    return
+  }
+
+  const id = uuid()
+  const request = {
+    command: 'startWebMonetization',
+    data: Object.assign({ id }, details)
+  }
+
+  chrome.runtime.sendMessage(request, result => {
+    if (result.error) {
+      console.error('web monetization error.', result.error)
+      return
+    }
+
+    if (document.visibilityState === 'hidden') {
+      console.log('visibility is hidden')
+      chrome.runtime.sendMessage({
+        command: 'pauseWebMonetization',
+        data: { id }
+      })
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        chrome.runtime.sendMessage({
+          command: 'resumeWebMonetization',
+          data: { id }
+        })
+      } else {
+        chrome.runtime.sendMessage({
+          command: 'pauseWebMonetization',
+          data: { id }
+        })
+      }
     })
+
+    let started = false
+    chrome.runtime.onMessage.addListener((request, sender) => {
+      if (request.command === 'monetizationProgress') {
+        console.log('GOT MONETIZATIONPROGRESS MESSAGE')
+        if (!started) {
+          started = true
+
+          inject(`document.monetization.state = 'started'`)
+          window.postMessage({
+            webMonetization: true,
+            name: 'monetizationstart',
+            detail: Object.assign({ requestId: id }, details)
+          })
+        }
+
+        chrome.runtime.sendMessage({
+          command: 'handleMonetizedSite',
+          data: {
+            packet: {
+              amount: request.data.sentAmount
+            }
+          }
+        })
+
+        window.postMessage({
+          webMonetization: true,
+          name: 'monetizationprogress',
+          detail: {
+            amount: request.data.amount,
+            assetCode: request.data.assetCode,
+            assetScale: request.data.assetScale
+          }
+        })
+      }
+    })
+
+    // Indicate that payment has started.
+    // First nonzero packet has been fulfilled
   })
 }
 
-listen()
-inject()
+// Scan for WM meta tags when page is interactive
+if (document.readyState === 'interactive' || document.readyState === 'complete') {
+  startMonetization()
+} else {
+  document.addEventListener('readystatechange', async event => {
+    if (event.target.readyState === 'interactive') {
+      startMonetization()
+    }
+  })
+}
+
+// Adapter from posted messages on window to `CustomEvent`s
+// TODO: less janky cross-platform way to create a generic EventTarget
+inject(`
+  document.monetization = document.createElement('div')
+  document.monetization.state = 'pending'
+  window.addEventListener('message', function (event) {
+    if (event.source === window && event.data.webMonetization) {
+      document.monetization.dispatchEvent(
+        new CustomEvent(event.data.name, {
+          detail: event.data.detail
+        }))
+    }
+  })
+`)
+
+// bind the events and inject the code required for the previous version of web
+// monetization
+// require('./legacyContent')
